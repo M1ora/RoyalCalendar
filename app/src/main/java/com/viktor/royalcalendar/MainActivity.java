@@ -12,6 +12,7 @@ import java.time.LocalDate;
 public class MainActivity extends Activity {
   private LinearLayout content;
   private ImageView preview;
+  private LinearLayout exactAlarmPanel;
   private boolean ru;
   private int selectedDay = LocalDate.now().getDayOfMonth();
   private int selectedPart = 0;
@@ -43,6 +44,10 @@ public class MainActivity extends Activity {
   public void onResume() {
     super.onResume();
     if (preview != null) refresh();
+    if (exactAlarmPanel != null)
+      exactAlarmPanel.setVisibility(
+          CalendarWidget.exactAlarmsAllowed(this) ? View.GONE : View.VISIBLE);
+    CalendarWidget.updateAll(this);
   }
 
   private TextView text(String value, int size, int color) {
@@ -109,6 +114,7 @@ public class MainActivity extends Activity {
                     Toast.LENGTH_LONG)
                 .show();
         });
+    addExactAlarmAccess();
     if (BuildConfig.DEBUG) {
       addEditor();
       title.setOnClickListener(
@@ -146,6 +152,48 @@ public class MainActivity extends Activity {
     LocalDate d = LocalDate.now();
     if (selectedDay > d.lengthOfMonth()) d = d.plusMonths(1);
     return d.withDayOfMonth(selectedDay);
+  }
+
+  private void addExactAlarmAccess() {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) return;
+    exactAlarmPanel = new LinearLayout(this);
+    exactAlarmPanel.setOrientation(LinearLayout.VERTICAL);
+    content.addView(exactAlarmPanel);
+    TextView explanation = new TextView(this);
+    explanation.setText(
+        t(
+            "Для смены даты в полночь разреши «Будильники и напоминания». Без этого Android может"
+                + " задержать обновление на несколько минут.",
+            "Allow Alarms & reminders to update the date at midnight. Without this permission,"
+                + " Android may delay the update by several minutes."));
+    explanation.setTextColor(0xffb9b9bd);
+    explanation.setTextSize(15);
+    explanation.setPadding(0, dp(12), 0, dp(8));
+    exactAlarmPanel.addView(explanation);
+    Button allow = new Button(this);
+    allow.setText(t("Разрешить точное обновление", "Allow precise updates"));
+    allow.setMinHeight(dp(48));
+    exactAlarmPanel.addView(allow, new LinearLayout.LayoutParams(-1, -2));
+    allow.setOnClickListener(
+        v -> {
+          Intent request =
+              new Intent(
+                  android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                  android.net.Uri.parse("package:" + getPackageName()));
+          try {
+            startActivity(request);
+          } catch (ActivityNotFoundException unavailable) {
+            Toast.makeText(
+                    this,
+                    t(
+                        "Открой настройки приложения → Будильники и напоминания",
+                        "Open app settings → Alarms & reminders"),
+                    Toast.LENGTH_LONG)
+                .show();
+          }
+        });
+    exactAlarmPanel.setVisibility(
+        CalendarWidget.exactAlarmsAllowed(this) ? View.GONE : View.VISIBLE);
   }
 
   private void refresh() {

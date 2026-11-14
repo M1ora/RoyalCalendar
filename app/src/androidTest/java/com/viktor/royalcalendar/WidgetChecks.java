@@ -9,9 +9,14 @@ import java.time.*;
 import java.util.*;
 
 public class WidgetChecks extends Instrumentation {
+  private boolean verifyAlarm;
+  private String alarmResult = "";
+
   @Override
   public void onCreate(Bundle arguments) {
     super.onCreate(arguments);
+    verifyAlarm =
+        arguments != null && Boolean.parseBoolean(arguments.getString("verify_alarm", "false"));
     start();
   }
 
@@ -40,6 +45,16 @@ public class WidgetChecks extends Instrumentation {
       check(
           DateModel.nextMidnight(dst) - dst.toInstant().toEpochMilli() == 23 * 3600000L,
           "DST-safe next midnight");
+      ZonedDateTime justBefore =
+          ZonedDateTime.of(2026, 11, 14, 23, 59, 59, 0, ZoneId.of("Asia/Yekaterinburg"));
+      check(
+          DateModel.nextMidnight(justBefore) - justBefore.toInstant().toEpochMilli() == 1000,
+          "Midnight is the next second before the day changes");
+      check(
+          DateModel.nextMidnight(justBefore.plusSeconds(1))
+                  - justBefore.plusSeconds(1).toInstant().toEpochMilli()
+              == 86400000L,
+          "Midnight reschedules to the following day");
       // Test the shipped composition without changing the user's live tuning.
       getTargetContext().getSharedPreferences("widget_test_defaults", 0).edit().clear().commit();
       android.content.Context defaults =
@@ -156,16 +171,65 @@ public class WidgetChecks extends Instrumentation {
                   p -> p.provider.getPackageName().equals(getTargetContext().getPackageName())),
           "Widget registered with Android");
       CalendarWidget.updateAll(getTargetContext());
+      if (verifyAlarm) verifyExactAlarmDelivery();
       result.putString(
           "stream",
           "PASS: "
               + count
               + " checks. English sprites, all 31 dates, leap/year boundaries, DST, transparency,"
-              + " widget registration.\n");
+              + " widget registration. "
+              + alarmResult
+              + "\n");
       finish(-1, result);
     } catch (Throwable e) {
       result.putString("stream", "FAIL: " + e + "\n");
       finish(0, result);
+    }
+  }
+
+  private void verifyExactAlarmDelivery() throws Exception {
+    android.content.Context context = getTargetContext();
+    check(CalendarWidget.exactAlarmsAllowed(context), "Exact alarm access is granted");
+    String action = context.getPackageName() + ".TEST_EXACT_ALARM";
+    java.util.concurrent.CountDownLatch delivered = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.atomic.AtomicLong receivedAt =
+        new java.util.concurrent.atomic.AtomicLong();
+    android.content.BroadcastReceiver observer =
+        new android.content.BroadcastReceiver() {
+          @Override
+          public void onReceive(android.content.Context c, android.content.Intent i) {
+            receivedAt.set(System.currentTimeMillis());
+            delivered.countDown();
+          }
+        };
+    android.content.IntentFilter filter = new android.content.IntentFilter(action);
+    if (android.os.Build.VERSION.SDK_INT >= 33)
+      context.registerReceiver(observer, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+    else context.registerReceiver(observer, filter);
+    android.app.PendingIntent operation =
+        android.app.PendingIntent.getBroadcast(
+            context,
+            991,
+            new android.content.Intent(action).setPackage(context.getPackageName()),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                | android.app.PendingIntent.FLAG_IMMUTABLE);
+    try {
+      long target = System.currentTimeMillis() + 5000;
+      check(
+          CalendarWidget.scheduleAt(context, target, operation),
+          "The real scheduler selects an exact alarm");
+      check(
+          delivered.await(20, java.util.concurrent.TimeUnit.SECONDS),
+          "The scheduled alarm is delivered");
+      long delay = receivedAt.get() - target;
+      check(
+          delay >= -100 && delay < 2500,
+          "Exact delivery delay is below 2.5 seconds: " + delay + "ms");
+      alarmResult = "Exact alarm delivery: " + delay + "ms.";
+    } finally {
+      context.getSystemService(android.app.AlarmManager.class).cancel(operation);
+      operation.cancel();
+      context.unregisterReceiver(observer);
     }
   }
 }

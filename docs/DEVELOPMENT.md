@@ -47,3 +47,10 @@ application settings.
 
 GitHub Actions builds the APKs and runs Android Lint. Connected-device checks
 require a phone or emulator and run separately.
+
+After enabling Alarms & reminders on Android 12+, add `-e verify_alarm true`
+to the instrumentation command to exercise the same scheduling path with a
+five-second alarm. It measures actual delivery without changing the phone's
+clock or replacing the real midnight alarm. Midnight is recalculated after
+time/timezone changes, reboot and exact-alarm permission grants. Without this
+permission the app explicitly falls back to delayed inexact scheduling.

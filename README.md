@@ -11,10 +11,13 @@ on a transparent background. No KWGT required.
 
 ## Install
 
-Download **RoyalCalendar-v1.0.0.apk** from
+Download the **RoyalCalendar APK** from
 [Releases](https://github.com/M1ora/RoyalCalendar/releases/latest), install it
 on your phone, then open **Royal Calendar** and tap **Add to home screen**.
 Hold the widget to move or resize it. Requires Android 8.0 or newer.
+
+On Android 12 or newer, enable **Alarms & reminders** using the app's
+**Allow precise updates** button for the date to update at midnight.
 
 ## License and credits
 

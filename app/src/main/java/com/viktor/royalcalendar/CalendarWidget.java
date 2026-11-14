@@ -3,6 +3,7 @@ package com.viktor.royalcalendar;
 import android.app.*;
 import android.appwidget.*;
 import android.content.*;
+import android.os.Build;
 import android.os.Bundle;
 import android.widget.RemoteViews;
 import java.time.*;
@@ -49,9 +50,26 @@ public class CalendarWidget extends AppWidgetProvider {
   }
 
   static void schedule(Context c) {
-    c.getSystemService(AlarmManager.class)
-        .setAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP, DateModel.nextMidnight(ZonedDateTime.now()), alarm(c));
+    scheduleAt(c, DateModel.nextMidnight(ZonedDateTime.now()), alarm(c));
+  }
+
+  static boolean exactAlarmsAllowed(Context c) {
+    return Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+        || c.getSystemService(AlarmManager.class).canScheduleExactAlarms();
+  }
+
+  static boolean scheduleAt(Context c, long when, PendingIntent operation) {
+    AlarmManager manager = c.getSystemService(AlarmManager.class);
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || manager.canScheduleExactAlarms()) {
+      try {
+        manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, operation);
+        return true;
+      } catch (SecurityException permissionRevoked) {
+        // Permission can be revoked between the check and the scheduling call.
+      }
+    }
+    manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, operation);
+    return false;
   }
 
   static void cancel(Context c) {
