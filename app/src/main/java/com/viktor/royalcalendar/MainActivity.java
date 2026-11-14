@@ -13,12 +13,14 @@ public class MainActivity extends Activity {
   private LinearLayout content;
   private ImageView preview;
   private LinearLayout exactAlarmPanel;
+  private LinearLayout reloadBackground;
   private boolean ru;
   private int selectedDay = LocalDate.now().getDayOfMonth();
   private int selectedPart = 0;
   private boolean binding;
   private int debugTaps;
   private Button debugToggle;
+  private LinearLayout layoutEditor;
   private SeekBar xSlider, ySlider, angleSlider, sizeSlider;
   private TextView xLabel, yLabel, angleLabel, sizeLabel;
   private final android.os.Handler handler =
@@ -79,21 +81,91 @@ public class MainActivity extends Activity {
     scroll.addView(content);
     TextView title = text("Royal Calendar", 32, Color.WHITE);
     title.setTypeface(null, android.graphics.Typeface.BOLD);
-    text(t("Каждый день — твой.", "Make every day yours."), 16, 0xffb9b9bd);
-    FrameLayout stage = new FrameLayout(this);
-    stage.setBackgroundColor(0xff343438);
-    content.addView(stage, new LinearLayout.LayoutParams(-1, dp(270)));
-    preview = new ImageView(this);
-    preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
-    stage.addView(preview, new FrameLayout.LayoutParams(-1, -1));
+    text(t("Оформление календаря", "Calendar style"), 16, Color.WHITE);
+    RadioGroup styles = new RadioGroup(this);
+    for (String style : new String[] {"royal", "reload"}) {
+      RadioButton option = new RadioButton(this);
+      option.setId(View.generateViewId());
+      option.setText(style.equals("royal") ? "Persona 5 / Royal" : "Persona 3 Reload");
+      option.setTextColor(Color.WHITE);
+      option.setButtonTintList(android.content.res.ColorStateList.valueOf(0xff75beff));
+      option.setMinHeight(dp(48));
+      styles.addView(option, new RadioGroup.LayoutParams(-1, -2));
+      option.setChecked(style.equals(CalendarRenderer.selectedStyle(this)));
+      option.setOnCheckedChangeListener(
+          (button, checked) -> {
+            if (!checked) return;
+            getSharedPreferences("appearance", 0).edit().putString("style", style).apply();
+            if (preview != null) changed();
+          });
+    }
+    content.addView(styles);
+    reloadBackground = new LinearLayout(this);
+    reloadBackground.setOrientation(LinearLayout.VERTICAL);
+    TextView backgroundTitle = new TextView(this);
+    backgroundTitle.setText(t("Фон Reload", "Reload background"));
+    backgroundTitle.setTextSize(16);
+    backgroundTitle.setTextColor(Color.WHITE);
+    reloadBackground.addView(backgroundTitle);
+    RadioGroup backgrounds = new RadioGroup(this);
+    boolean savedOpaque = getSharedPreferences("appearance", 0).getBoolean("reload_opaque", false);
+    for (boolean opaque : new boolean[] {false, true}) {
+      RadioButton option = new RadioButton(this);
+      option.setId(View.generateViewId());
+      option.setText(opaque ? t("Тёмно-синий", "Navy background") : t("Прозрачный", "Transparent"));
+      option.setTextColor(Color.WHITE);
+      option.setButtonTintList(android.content.res.ColorStateList.valueOf(0xff75beff));
+      option.setMinHeight(dp(48));
+      backgrounds.addView(option, new RadioGroup.LayoutParams(-1, -2));
+      option.setChecked(opaque == savedOpaque);
+      option.setOnCheckedChangeListener(
+          (button, checked) -> {
+            if (!checked) return;
+            getSharedPreferences("appearance", 0)
+                .edit()
+                .putBoolean("reload_opaque", opaque)
+                .apply();
+            if (preview != null) changed();
+          });
+    }
+    reloadBackground.addView(backgrounds);
+    TextView radiusLabel = new TextView(this);
+    radiusLabel.setTextColor(Color.WHITE);
+    radiusLabel.setTextSize(16);
+    int savedRadius = getSharedPreferences("appearance", 0).getInt("reload_radius", 48);
+    radiusLabel.setText(
+        t("Скругление: ", "Corner rounding: ") + Math.round(savedRadius / 1.6f) + "%");
+    reloadBackground.addView(radiusLabel);
+    SeekBar radiusSlider = new SeekBar(this);
+    radiusSlider.setMax(160);
+    radiusSlider.setProgress(savedRadius);
+    radiusSlider.setMinimumHeight(dp(48));
+    radiusSlider.setContentDescription(t("Скругление углов Reload", "Reload corner rounding"));
+    reloadBackground.addView(radiusSlider, new LinearLayout.LayoutParams(-1, dp(48)));
+    radiusSlider.setOnSeekBarChangeListener(
+        new SeekBar.OnSeekBarChangeListener() {
+          public void onProgressChanged(SeekBar bar, int progress, boolean user) {
+            radiusLabel.setText(
+                t("Скругление: ", "Corner rounding: ") + Math.round(progress / 1.6f) + "%");
+            if (!user) return;
+            getSharedPreferences("appearance", 0).edit().putInt("reload_radius", progress).apply();
+            if (preview != null) changed();
+          }
+
+          public void onStartTrackingTouch(SeekBar bar) {}
+
+          public void onStopTrackingTouch(SeekBar bar) {
+            handler.removeCallbacks(updateWidgets);
+            CalendarWidget.updateAll(MainActivity.this);
+          }
+        });
+    content.addView(reloadBackground);
+    preview = new CalendarPreview(this);
+    preview.setId(R.id.calendar_preview);
+    preview.setBackgroundColor(0xff343438);
+    content.addView(preview, new LinearLayout.LayoutParams(-1, -2));
     preview.setContentDescription(
         t("Предпросмотр календаря с сегодняшней датой", "Preview of today's calendar"));
-    text(
-        t(
-            "Прозрачный фон · дата телефона · без интернета",
-            "Transparent background · your phone's date · works offline"),
-        14,
-        0xffb9b9bd);
     Button pin = new Button(this);
     pin.setText(t("Добавить на главный экран", "Add to home screen"));
     pin.setMinHeight(dp(52));
@@ -109,7 +181,7 @@ public class MainActivity extends Activity {
             Toast.makeText(
                     this,
                     t(
-                        "Удерживай пустое место на рабочем столе → Виджеты → Royal Calendar",
+                        "Удерживай пустое место на рабочем столе" + " → Виджеты → Royal Calendar",
                         "Long-press the home screen → Widgets → Royal Calendar"),
                     Toast.LENGTH_LONG)
                 .show();
@@ -132,18 +204,34 @@ public class MainActivity extends Activity {
     }
     text(
         t(
-            "Удерживай виджет, чтобы изменить размер. Нажми на него, чтобы открыть приложение.",
+            "Удерживай виджет, чтобы изменить размер. Нажми"
+                + " на него, чтобы открыть приложение.",
             "Hold the widget to resize it. Tap it to open the app."),
         15,
         0xffb9b9bd);
     text(
         t(
-            "Спрайты календаря: BHDown. Неофициальный личный проект по мотивам Persona 5 / Royal."
-                + " Графика игры: ATLUS / SEGA.",
-            "Calendar artwork: BHDown. Unofficial personal project inspired by Persona 5 / Royal."
-                + " Game artwork: ATLUS / SEGA."),
+            "Неофициальный фан-проект. Не связан с ATLUS или SEGA."
+                + " Persona и графика игр принадлежат их правообладателям.",
+            "Unofficial fan project. Not affiliated with ATLUS or SEGA."
+                + " Persona and game artwork belong to their respective owners."),
         12,
         0xff96969e);
+    TextView source =
+        text(
+            t("Ассеты Royal: Persona-5-Calendar", "Royal assets: Persona-5-Calendar"),
+            12,
+            0xff75beff);
+    android.text.SpannableString sourceLink = new android.text.SpannableString(source.getText());
+    sourceLink.setSpan(
+        new android.text.style.URLSpan("https://github.com/Mive82/Persona-5-Calendar"),
+        0,
+        sourceLink.length(),
+        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    source.setText(sourceLink);
+    source.setLinkTextColor(0xff75beff);
+    source.setMovementMethod(android.text.method.LinkMovementMethod.getInstance());
+    source.setMinHeight(dp(48));
     setContentView(scroll);
     refresh();
   }
@@ -162,7 +250,8 @@ public class MainActivity extends Activity {
     TextView explanation = new TextView(this);
     explanation.setText(
         t(
-            "Для смены даты в полночь разреши «Будильники и напоминания». Без этого Android может"
+            "Для смены даты в полночь разреши «Будильники и"
+                + " напоминания». Без этого Android может"
                 + " задержать обновление на несколько минут.",
             "Allow Alarms & reminders to update the date at midnight. Without this permission,"
                 + " Android may delay the update by several minutes."));
@@ -186,7 +275,7 @@ public class MainActivity extends Activity {
             Toast.makeText(
                     this,
                     t(
-                        "Открой настройки приложения → Будильники и напоминания",
+                        "Открой настройки приложения →" + " Будильники и напоминания",
                         "Open app settings → Alarms & reminders"),
                     Toast.LENGTH_LONG)
                 .show();
@@ -197,8 +286,16 @@ public class MainActivity extends Activity {
   }
 
   private void refresh() {
+    boolean royal = !"reload".equals(CalendarRenderer.selectedStyle(this));
+    if (reloadBackground != null) reloadBackground.setVisibility(royal ? View.GONE : View.VISIBLE);
+    if (debugToggle != null) debugToggle.setEnabled(royal);
+    if (!royal && layoutEditor != null) layoutEditor.setVisibility(View.GONE);
+    CalendarRenderer renderer = new CalendarRenderer(this);
+    boolean editing = royal && layoutEditor != null && layoutEditor.getVisibility() == View.VISIBLE;
     preview.setImageBitmap(
-        new CalendarRenderer(this).render(previewDate(), CalendarRenderer.language(this), 1000));
+        editing
+            ? renderer.render(previewDate(), CalendarRenderer.language(this), 1000)
+            : renderer.renderWidget(previewDate(), CalendarRenderer.language(this), 1000));
   }
 
   private String key(String field) {
@@ -236,6 +333,7 @@ public class MainActivity extends Activity {
     toggle.setMinHeight(dp(48));
     content.addView(toggle, new LinearLayout.LayoutParams(-1, -2));
     LinearLayout editor = new LinearLayout(this);
+    layoutEditor = editor;
     editor.setOrientation(LinearLayout.VERTICAL);
     editor.setVisibility(View.GONE);
     content.addView(editor);
@@ -247,13 +345,16 @@ public class MainActivity extends Activity {
               show
                   ? t("Скрыть настройку", "Hide adjustments")
                   : t("Настроить положение", "Adjust placement"));
+          refresh();
         });
     LinearLayout original = content;
     content = editor;
     text(
         t(
-            "Выбери число и элемент, затем перетащи его на предпросмотре или используй ползунки."
-                + " Настройка сохраняется для этого числа во всех месяцах.",
+            "Выбери число и элемент, затем перетащи его на"
+                + " предпросмотре или используй ползунки."
+                + " Настройка сохраняется для этого числа во"
+                + " всех месяцах.",
             "Choose a date number and an element, then drag it in the preview or use the sliders."
                 + " Adjustments apply to this date number every month."),
         15,
@@ -317,7 +418,8 @@ public class MainActivity extends Activity {
     final float[] drag = new float[4];
     preview.setOnTouchListener(
         (v, event) -> {
-          if (editor.getVisibility() != View.VISIBLE) return false;
+          if (editor.getVisibility() != View.VISIBLE
+              || "reload".equals(CalendarRenderer.selectedStyle(this))) return false;
           switch (event.getActionMasked()) {
             case android.view.MotionEvent.ACTION_DOWN:
               drag[0] = event.getX();

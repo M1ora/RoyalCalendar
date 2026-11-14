@@ -6,7 +6,7 @@ trademarks or the included Gradle Wrapper.
 
 ## Calendar sprites
 
-Files under `app/src/main/assets/` come from
+Royal sprite files under `app/src/main/assets/` (excluding `reload/`) come from
 [Mive82/Persona-5-Calendar](https://github.com/Mive82/Persona-5-Calendar).
 The upstream repository credits **BHDown** for high-resolution calendar artwork,
 **Dartemil** for the earlier Rainmeter skin, and the original Persona games.
@@ -23,6 +23,28 @@ The app composites the supplied sprite layers and adjusts colors and alpha
 for the day-transition appearance. Weekday text remains white; weekend
 numbers are blue for Saturday and red for Sunday.
 
+## Persona 3 Reload style
+
+Files under `app/src/main/assets/reload/` are extracted from the [[4K] Persona 3 Reload Calendar](https://steamcommunity.com/sharedfiles/filedetails/?id=3336208279)
+Wallpaper Engine scene by **eGirl Pimp** (Workshop ID `3336208279`). The package
+was unpacked and its TEX textures decoded with [RePKG](https://github.com/notscuffed/repkg).
+The original package and full extracted scene remain in ignored local folders.
+
+The scene contains **ITC Avant Garde Gothic Bold Condensed**, 30 moon-phase
+textures (colored and monochrome), and three circle textures. Its 3840 x 2160
+coordinates, layer scales, colors and typography sizes are adapted in
+`ReloadRenderer.java`. Geometry and live text use antialiased Canvas rendering,
+and the complete scene is rendered at twice the output size before reduction.
+The transparent variant omits navy backing and removes navy from moon textures.
+Both background modes share adjustable corner rounding.
+
+These are third-party materials, not original MIT-licensed artwork. The
+Workshop package does not establish that its images are extracted game assets,
+and does not supply redistribution rights for the bundled proprietary font.
+No additional license or redistribution permission is asserted by this project.
+The application code license does not cover these third-party materials.
+The style choice applies to all installed widgets.
+
 ## Dagger and preview images
 
 `app/src/main/res/drawable-nodpi/dagger_original.png` is a transparent
@@ -31,12 +53,13 @@ download location was not provided. It is third-party artwork, not original
 MIT-licensed application code.
 
 `widget_preview.png` and `docs/images/widget-preview.png` are generated from
-the same calendar and dagger artwork. They are subject to the same artwork
+the same calendar and dagger artwork. `docs/images/reload-preview.png` is
+rendered from the Reload scene assets above. They are subject to the same artwork
 limitations and are not screenshots of the owner's private phone content.
 
 ## Names and affiliation
 
-Persona, Persona 5 / Royal and original game artwork belong to their respective
+Persona, Persona 5 / Royal, Persona 3 Reload and original game artwork belong to their respective
 owners, including ATLUS and SEGA. This is an unofficial fan project and is not
 affiliated with or endorsed by them. No commercial redistribution permission
 for the third-party artwork is asserted by this repository.

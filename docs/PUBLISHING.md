@@ -34,11 +34,11 @@ are signed separately with the stable private release key.
 
 ## Development installs
 
-The existing development build on the owner's phone uses Android's debug key.
-The public release uses a different private release key. Android will not
-install one over the other as an in-place update. Switching from a development
-install to the public release requires removing the development install first;
-the publishing process does not remove anything from the owner's phone.
+The owner's current local prototype is signed with the same private key as
+public releases, so a signed release can update it without removing app data.
+Ordinary `assembleDebug` builds use Android's debug key and cannot update the
+public release in place. Keep the private key and passwords out of Git and
+release attachments. Never uninstall the owner's app as part of publishing.
 
 ## Source and attribution
 

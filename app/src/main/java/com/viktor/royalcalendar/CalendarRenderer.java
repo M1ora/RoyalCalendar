@@ -257,6 +257,58 @@ public final class CalendarRenderer {
   }
 
   public Bitmap render(LocalDate today, String lang, int width) {
+    return render(today, lang, width, selectedStyle(context));
+  }
+
+  public static String selectedStyle(Context context) {
+    return context.getSharedPreferences("appearance", 0).getString("style", "royal");
+  }
+
+  /** Remove Royal's editing margins before fitting it into the wide home-screen widget. */
+  public Bitmap renderWidget(LocalDate today, String lang, int width) {
+    Bitmap source = render(today, lang, width);
+    if ("reload".equals(selectedStyle(context))) return source;
+    int left = source.getWidth(), top = source.getHeight(), right = -1, bottom = -1;
+    int[] row = new int[source.getWidth()];
+    for (int y = 0; y < source.getHeight(); y++) {
+      source.getPixels(row, 0, row.length, 0, y, row.length, 1);
+      for (int x = 0; x < row.length; x++) {
+        if (Color.alpha(row[x]) <= 8) continue;
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
+    }
+    Bitmap out = Bitmap.createBitmap(width, Math.round(width * 9 / 16f), Bitmap.Config.ARGB_8888);
+    if (right >= left) {
+      float scale =
+          Math.min(
+              width / (float) (right - left + 1), out.getHeight() / (float) (bottom - top + 1));
+      float w = (right - left + 1) * scale, h = (bottom - top + 1) * scale;
+      new Canvas(out)
+          .drawBitmap(
+              source,
+              new Rect(left, top, right + 1, bottom + 1),
+              new RectF(
+                  (width - w) / 2,
+                  (out.getHeight() - h) / 2,
+                  (width + w) / 2,
+                  (out.getHeight() + h) / 2),
+              paint);
+    }
+    source.recycle();
+    return out;
+  }
+
+  public Bitmap render(LocalDate today, String lang, int width, String style) {
+    if ("reload".equals(style))
+      return new ReloadRenderer(context)
+          .render(
+              today,
+              width,
+              context.getSharedPreferences("appearance", 0).getBoolean("reload_opaque", false),
+              context.getSharedPreferences("appearance", 0).getInt("reload_radius", 48));
     Bitmap out =
         Bitmap.createBitmap(
             width, Math.round(width * DESIGN_HEIGHT / 1200f), Bitmap.Config.ARGB_8888);

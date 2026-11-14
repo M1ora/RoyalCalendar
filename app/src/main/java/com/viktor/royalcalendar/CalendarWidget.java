@@ -26,7 +26,7 @@ public class CalendarWidget extends AppWidgetProvider {
       int dp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 400);
       int width = Math.max(600, Math.min(1200, dp * 3));
       RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget);
-      views.setImageViewBitmap(R.id.calendar_image, renderer.render(today, lang, width));
+      views.setImageViewBitmap(R.id.calendar_image, renderer.renderWidget(today, lang, width));
       views.setContentDescription(
           R.id.calendar_image,
           today.format(
